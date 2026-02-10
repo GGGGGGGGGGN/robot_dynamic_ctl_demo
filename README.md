@@ -7,3 +7,6 @@ mamba activate rm_ctl
 
 pip install -e .
 
+从urdf文件的获取机器人惯量信息，构建了xml文件，添加关节阻尼和驱动器的设置。
+
+

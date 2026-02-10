@@ -1,0 +1,27 @@
+<mujoco model="realman_motor_control">
+  <include file="robot_body.xml"/>
+
+  <actuator>
+    <motor name="act_platform" joint="platform_joint" gear="1" ctrlrange="0 300"/>
+
+    <motor name="act_head1" joint="head_joint1" gear="1" ctrlrange="-10 10"/>
+    <motor name="act_head2" joint="head_joint2" gear="1" ctrlrange="-10 10"/>
+
+    <motor name="act_l1" joint="l_joint1" gear="1" ctrlrange="-150 150"/>
+    <motor name="act_l2" joint="l_joint2" gear="1" ctrlrange="-150 150"/>
+    
+    <motor name="act_l3" joint="l_joint3" gear="1" ctrlrange="-100 100"/>
+    <motor name="act_l4" joint="l_joint4" gear="1" ctrlrange="-100 100"/>
+    
+    <motor name="act_l5" joint="l_joint5" gear="1" ctrlrange="-30 30"/>
+    <motor name="act_l6" joint="l_joint6" gear="1" ctrlrange="-30 30"/>
+
+    <motor name="act_r1" joint="r_joint1" gear="1" ctrlrange="-150 150"/>
+    <motor name="act_r2" joint="r_joint2" gear="1" ctrlrange="-150 150"/>
+    <motor name="act_r3" joint="r_joint3" gear="1" ctrlrange="-100 100"/>
+    <motor name="act_r4" joint="r_joint4" gear="1" ctrlrange="-100 100"/>
+    <motor name="act_r5" joint="r_joint5" gear="1" ctrlrange="-30 30"/>
+    <motor name="act_r6" joint="r_joint6" gear="1" ctrlrange="-30 30"/>
+
+  </actuator>
+</mujoco>

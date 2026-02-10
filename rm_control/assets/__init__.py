@@ -2,8 +2,11 @@
 from pathlib import Path
 
 ASSETS_ROOT = Path(__file__).resolve().parent  # .../realman_sim/assets
-REAL_MAN_MJCF = str(ASSETS_ROOT / "overseas_65_b_v_description/mjcf/realman_mujoco.xml")
-REAL_MAN_URDF = str(ASSETS_ROOT / "overseas_65_b_v_description/urdf/model_for_mujoco.urdf")
-REAL_MAN_STL = str(ASSETS_ROOT / "overseas_65_b_v_description/meshes")
-def get_model_path():
-    return REAL_MAN_MJCF
+REAL_MAN_MJCF_POSITION = str(ASSETS_ROOT / "overseas_65_b_v_description/mjcf/scene_pos.xml")
+REAL_MAN_MJCF_TORQUE = str(ASSETS_ROOT / "overseas_65_b_v_description/mjcf/scene_torque.xml")
+
+def get_model_path_position():
+    return REAL_MAN_MJCF_POSITION
+
+def get_model_path_torque():
+    return REAL_MAN_MJCF_TORQUE

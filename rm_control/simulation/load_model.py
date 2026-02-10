@@ -1,3 +1,4 @@
+# 导入模型并显示，检查控制器
 import time
 import numpy as np
 import mujoco
@@ -5,12 +6,13 @@ import mujoco.viewer
 
 # 导入我们在 rm_control/__init__.py 里写好的路径工具
 # 如果报错 "ModuleNotFoundError"，请确保你已经 pip install -e . 安装了包
-from rm_control.assets import get_model_path
+from rm_control.assets import get_model_path_torque
+from rm_control.assets import get_model_path_position
 
 def main():
     # 1. 加载模型
     # 使用我们刚写好的 全身动力学模型
-    xml_path = get_model_path()
+    xml_path = get_model_path_torque()
     print(f"Loading model from: {xml_path}")
     
     try:

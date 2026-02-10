@@ -1,0 +1,25 @@
+<mujoco model="realman_position_control">
+  <include file="robot_body.xml"/>
+
+  <actuator>  
+    <position name="act_platform" joint="platform_joint" kp="20000" kv="2000" ctrlrange="0 0.82"/>
+
+    <position name="act_head1" joint="head_joint1" kp="100" kv="10" ctrlrange="-1.256 1.256"/>
+    <position name="act_head2" joint="head_joint2" kp="100" kv="10" ctrlrange="-0.419 0.419"/>
+
+    <position name="act_l1" joint="l_joint1" kp="1500" kv="150" ctrlrange="-3.11 3.11"/>
+    <position name="act_l2" joint="l_joint2" kp="1500" kv="150" ctrlrange="-2.27 2.27"/>
+    <position name="act_l3" joint="l_joint3" kp="1000" kv="100" ctrlrange="-2.36 2.36"/>
+    <position name="act_l4" joint="l_joint4" kp="1000" kv="100" ctrlrange="-3.11 3.11"/>
+    <position name="act_l5" joint="l_joint5" kp="500"  kv="50"  ctrlrange="-2.23 2.23"/>
+    <position name="act_l6" joint="l_joint6" kp="500"  kv="50"  ctrlrange="-6.28 6.28"/>
+
+    <position name="act_r1" joint="r_joint1" kp="1500" kv="150" ctrlrange="-3.11 3.11"/>
+    <position name="act_r2" joint="r_joint2" kp="1500" kv="150" ctrlrange="-2.27 2.27"/>
+    <position name="act_r3" joint="r_joint3" kp="1000" kv="100" ctrlrange="-2.36 2.36"/>
+    <position name="act_r4" joint="r_joint4" kp="1000" kv="100" ctrlrange="-3.11 3.11"/>
+    <position name="act_r5" joint="r_joint5" kp="500"  kv="50"  ctrlrange="-2.23 2.23"/>
+    <position name="act_r6" joint="r_joint6" kp="500"  kv="50"  ctrlrange="-6.28 6.28"/>
+
+  </actuator>
+</mujoco>
