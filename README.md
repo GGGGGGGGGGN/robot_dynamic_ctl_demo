@@ -4,3 +4,5 @@
 
 mamba create -n rm_ctl python=3.13
 mamba activate rm_ctl
+
+pip install -e .

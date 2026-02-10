@@ -1,0 +1,125 @@
+<mujoco model="overseas_65_b_v_description">
+  <compiler angle="radian" meshdir="../meshes/"/>
+
+  <option timestep="0.0005" integrator="RK4">
+    <flag energy="enable" contact="enable"/>
+  </option>
+
+  <asset>
+    <mesh name="base_link_underpan" file="base_link_underpan.STL"/>
+    <mesh name="body_base_link" file="body_base_link.STL"/>
+    <mesh name="platform_base_link" file="platform_base_link.STL"/>
+    <mesh name="head_link1" file="head_link1.STL"/>
+    <mesh name="head_link2" file="head_link2.STL"/>
+    <mesh name="l_link1" file="l_link1.STL"/>
+    <mesh name="l_link2" file="l_link2.STL"/>
+    <mesh name="l_link3" file="l_link3.STL"/>
+    <mesh name="l_link4" file="l_link4.STL"/>
+    <mesh name="l_link5" file="l_link5.STL"/>
+    <mesh name="l_link6" file="l_link6.STL"/>
+    <mesh name="r_link1" file="r_link1.STL"/>
+    <mesh name="r_link2" file="r_link2.STL"/>
+    <mesh name="r_link3" file="r_link3.STL"/>
+    <mesh name="r_link4" file="r_link4.STL"/>
+    <mesh name="r_link5" file="r_link5.STL"/>
+    <mesh name="r_link6" file="r_link6.STL"/>
+  </asset>
+
+  <worldbody>
+    <geom name="floor" type="plane" size="5 5 .01" rgba="0.8 0.9 0.8 1"/>
+    <light directional="true" diffuse=".8 .8 .8" specular=".2 .2 .2" pos="0 0 5" dir="0 0 -1"/>
+
+    <body name="robot_base" pos="0 0 0.2">
+      <geom type="mesh" mesh="base_link_underpan" rgba="0.8 0.8 0.8 1"/>
+      <geom type="mesh" mesh="body_base_link" rgba="0.8 0.8 0.8 1"/>
+      
+      <body name="platform_base_link" pos="0 -0.11663 0.337">
+        <inertial pos="0.015 -0.05 0.004" mass="3.368" diaginertia="0.04 0.027 0.018"/>
+        <joint name="platform_joint" pos="0 0 0" axis="0 0 1" type="slide" range="0 0.82" damping="200" armature="0.5"/>
+        <geom type="mesh" mesh="platform_base_link" rgba="0.8 0.8 0.8 1"/>
+
+        <body name="head_link1" pos="0 -0.1018 0.126">
+          <joint name="head_joint1" axis="0 0 1" range="-1.256 1.256" damping="10" armature="0.05"/>
+          <geom type="mesh" mesh="head_link1"/>
+          <body name="head_link2" pos="0 -0.02 0.044">
+            <joint name="head_joint2" axis="-1 0 0" range="-0.419 0.419" damping="10" armature="0.05"/>
+            <geom type="mesh" mesh="head_link2"/>
+          </body>
+        </body>
+
+        <body name="l_link1" pos="0.2322 -0.1103 0.1638" quat="-0.9238 0 -0.3826 0">
+          <joint name="l_joint1" axis="0 0 1" range="-3.11 3.11" damping="50" armature="0.1"/>
+          <geom type="mesh" mesh="l_link1"/>
+          <body name="l_link2" quat="0.5 0.5 -0.5 0.5">
+            <joint name="l_joint2" axis="0 0 1" range="-2.27 2.27" damping="40" armature="0.1"/>
+            <geom type="mesh" mesh="l_link2"/>
+            <body name="l_link3" pos="0.256 0 0" quat="0.707 0 0 0.707">
+              <joint name="l_joint3" axis="0 0 1" range="-2.36 2.36" damping="30" armature="0.05"/>
+              <geom type="mesh" mesh="l_link3"/>
+              <body name="l_link4" pos="0 -0.21 0" quat="0.707 0.707 0 0">
+                <joint name="l_joint4" axis="0 0 1" range="-3.11 3.11" damping="20" armature="0.05"/>
+                <geom type="mesh" mesh="l_link4"/>
+                <body name="l_link5" quat="0.707 -0.707 0 0">
+                  <joint name="l_joint5" axis="0 0 1" range="-2.23 2.23" damping="10" armature="0.02"/>
+                  <geom type="mesh" mesh="l_link5"/>
+                  <body name="l_link6" pos="0 -0.115 0" quat="0.707 -0.707 0 0">
+                    <joint name="l_joint6" axis="0 0 1" range="-6.28 6.28" damping="10" armature="0.02"/>
+                    <geom type="mesh" mesh="l_link6"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+        <body name="r_link1" pos="-0.2322 -0.1103 0.1638" quat="0.9238 0 -0.3826 0">
+          <joint name="r_joint1" axis="0 0 1" range="-3.11 3.11" damping="50" armature="0.1"/>
+          <geom type="mesh" mesh="r_link1"/>
+          <body name="r_link2" quat="0.5 0.5 -0.5 0.5">
+            <joint name="r_joint2" axis="0 0 1" range="-2.27 2.27" damping="40" armature="0.1"/>
+            <geom type="mesh" mesh="r_link2"/>
+            <body name="r_link3" pos="0.256 0 0" quat="0.707 0 0 0.707">
+              <joint name="r_joint3" axis="0 0 1" range="-2.36 2.36" damping="30" armature="0.05"/>
+              <geom type="mesh" mesh="r_link3"/>
+              <body name="r_link4" pos="0 -0.21 0" quat="0.707 0.707 0 0">
+                <joint name="r_joint4" axis="0 0 1" range="-3.11 3.11" damping="20" armature="0.05"/>
+                <geom type="mesh" mesh="r_link4"/>
+                <body name="r_link5" quat="0.707 -0.707 0 0">
+                  <joint name="r_joint5" axis="0 0 1" range="-2.23 2.23" damping="10" armature="0.02"/>
+                  <geom type="mesh" mesh="r_link5"/>
+                  <body name="r_link6" pos="0 -0.112 0" quat="0.707 0.707 0 0">
+                    <joint name="r_joint6" axis="0 0 1" range="-6.28 6.28" damping="10" armature="0.02"/>
+                    <geom type="mesh" mesh="r_link6"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="act_platform" joint="platform_joint" kp="1000" kv="300"/>
+    <position name="act_h1" joint="head_joint1" kp="50" kv="10"/>
+    <position name="act_h2" joint="head_joint2" kp="50" kv="10"/>
+    <position name="act_l1" joint="l_joint1" kp="1000" kv="100"/>
+    <position name="act_l2" joint="l_joint2" kp="1000" kv="100"/>
+    <position name="act_l3" joint="l_joint3" kp="800" kv="80"/>
+    <position name="act_l4" joint="l_joint4" kp="500" kv="50"/>
+    <position name="act_l5" joint="l_joint5" kp="200" kv="20"/>
+    <position name="act_l6" joint="l_joint6" kp="100" kv="10"/>
+    <position name="act_r1" joint="r_joint1" kp="1000" kv="100"/>
+    <position name="act_r2" joint="r_joint2" kp="1000" kv="100"/>
+    <position name="act_r3" joint="r_joint3" kp="800" kv="80"/>
+    <position name="act_r4" joint="r_joint4" kp="500" kv="50"/>
+    <position name="act_r5" joint="r_joint5" kp="200" kv="20"/>
+    <position name="act_r6" joint="r_joint6" kp="100" kv="10"/>
+  </actuator>
+
+  <contact>
+    <exclude body1="robot_base" body2="platform_base_link"/>
+  </contact>
+</mujoco>
