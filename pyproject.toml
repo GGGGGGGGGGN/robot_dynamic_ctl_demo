@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rm_control"
+version = "0.1.0"
+description = "RealMan机器人高级控制算法库（包含动力学、CTC、阻抗控制等）"
+authors = [
+    { name = "ccx", email = "810447298@qq.com" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+
+dependencies = [
+    "matplotlib",
+    "mujoco>=3.0.0",
+    "pin", # Pinocchio 的 pip 包名通常是 pin 或 pinocchio
+    "pyyaml",
+]
+
+[tool.setuptools]
+packages = ["rm_control"]
+
+[tool.setuptools.package-data]
+"rm_control" = ["assets/*", "assets/meshes/*", "configs/*.yaml"]
+
+[project.urls]
+Homepage = "https://github.com/GGGGGGGGGGN/robot_dynamic_ctl_demo"

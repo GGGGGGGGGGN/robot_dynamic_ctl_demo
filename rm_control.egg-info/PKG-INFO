@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: rm_control
+Version: 0.1.0
+Summary: RealMan机器人高级控制算法库（包含动力学、CTC、阻抗控制等）
+Author-email: ccx <810447298@qq.com>
+License: MIT
+Project-URL: Homepage, https://github.com/GGGGGGGGGGN/robot_dynamic_ctl_demo
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: matplotlib
+Requires-Dist: mujoco>=3.0.0
+Requires-Dist: pin
+Requires-Dist: pyyaml
+Dynamic: license-file
+
+# robot_dynamic_ctl_demo
+演示基于realman机械臂的几种力控算法，便于对控制算法的学习和后期开发
+
+
+mamba create -n rm_ctl python=3.13
+mamba activate rm_ctl

@@ -1,0 +1,4 @@
+matplotlib
+mujoco>=3.0.0
+pin
+pyyaml
