@@ -27,8 +27,8 @@ def main():
     print(f"控制输入维度   (nu - ctrl): {model.nu}")
     print("-" * 30)
 
-    # 简单验证：如果 nu 不等于 17 (2轮+1腰+2头+12臂)，说明模型定义有误
-    expected_nu = 17 
+    # 简单验证：如果 nu 不等于 15 (1腰+2头+12臂)，说明模型定义有误
+    expected_nu = 15
     if model.nu != expected_nu:
         print(f"⚠️ 警告: 执行器数量 ({model.nu}) 与预期 ({expected_nu}) 不符，请检查 XML！")
     else:
