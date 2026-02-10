@@ -7,3 +7,4 @@ rm_control.egg-info/SOURCES.txt
 rm_control.egg-info/dependency_links.txt
 rm_control.egg-info/requires.txt
 rm_control.egg-info/top_level.txt
+rm_control/assets/__init__.py

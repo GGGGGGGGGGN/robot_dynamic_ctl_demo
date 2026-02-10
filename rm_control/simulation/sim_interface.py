@@ -4,9 +4,9 @@ import numpy as np
 import mujoco
 import mujoco.viewer
 
+# 假设你的路径管理模块
 from rm_control.assets import get_model_path_torque
 from rm_control.assets import get_model_path_position
-
 
 class SimInterface:
     def __init__(self, mode='position', render=True):
@@ -20,102 +20,151 @@ class SimInterface:
         self.render = render
         self.mode = mode
         
-        # 1. 自动定位 XML 路径
-        # 假设 assets 文件夹在 simulation 文件夹的上一级
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(current_dir) # 回退一级
-        
+        # --- 1. 加载模型 ---
         if mode == 'position':
             xml_path = get_model_path_position()
         elif mode == 'torque':
             xml_path = get_model_path_torque()
         else:
-            raise ValueError(f"未知模式: {mode}, 请使用 'position' 或 'torque'")
+            raise ValueError(f"未知模式: {mode}")
 
         print(f"📖 [SimInterface] 正在加载模型: {xml_path}")
         
-        # 2. 加载模型
         try:
             self.model = mujoco.MjModel.from_xml_path(xml_path)
             self.data = mujoco.MjData(self.model)
         except ValueError as e:
-            print(f"❌ 模型加载失败，请检查路径！\n错误信息: {e}")
+            print(f"❌ 模型加载失败: {e}")
             raise
 
-        # 3. 获取基本信息
+        # --- 2. 获取基本维度 ---
         self.dt = self.model.opt.timestep
-        self.nu = self.model.nu  # 执行器数量 (Actuators)
+        self.nu = self.model.nu  # 执行器数量
         self.nq = self.model.nq  # 关节位置维度
         self.nv = self.model.nv  # 关节速度维度
-        
-        # 获取执行器名字列表，方便调试
-        self.actuator_names = [mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i) 
-                               for i in range(self.nu)]
-        
-        print(f"✅ 模型加载成功！\n"
-              f"   - 模式: {mode.upper()}\n"
-              f"   - 执行器数量: {self.nu}\n"
-              f"   - 时间步长: {self.dt}s")
 
-        # 4. 初始化 Viewer (被动模式，非阻塞)
+        # --- 3. 初始化控制缓存 ---
+        # 维护一个全量的控制数组，分部控制函数只更新这个数组的一部分
+        self.current_ctrl = np.zeros(self.nu)
+
+        # --- 4. 建立索引映射 (关键步骤) ---
+        self._init_indices()
+
+        print(f"✅ 模型加载成功！模式: {mode.upper()}, Actuators: {self.nu}")
+        
+        # --- 5. 启动 Viewer ---
         self.viewer = None
         if self.render:
             self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
-            print("🖥️  图形界面 (GUI) 已启动")
-        else:
-            print("🚫 图形界面 (GUI) 已关闭 (Headless Mode)")
+            print("🖥️  图形界面已启动")
 
-    def step(self, action):
+    def _init_indices(self):
         """
-        仿真推演一步
+        [修复版] 根据 XML 中的命名规则，自动找到各部位对应的索引。
+        """
+        actuator_names = [mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i) 
+                          for i in range(self.nu)]
         
-        Args:
-            action (np.array): 控制指令
-                               - Position模式: 目标角度 (rad)
-                               - Torque模式:   目标力矩 (Nm)
-        """
-        # 安全检查：维度必须匹配
-        if len(action) != self.nu:
-            print(f"⚠️ 警告: 输入维度 {len(action)} 不等于执行器数量 {self.nu}")
-            return
+        # 1. 执行器索引 (使用更严格的匹配 'act_l' 和 'act_r')
+        # 这样 'act_platform' 就不会因为包含 'l' 或 'r' 而被误判了
+        self.idx_act_left = [i for i, n in enumerate(actuator_names) if 'act_l' in n]
+        self.idx_act_right = [i for i, n in enumerate(actuator_names) if 'act_r' in n]
+        
+        # 头部和升降台保持不变
+        self.idx_act_head = [i for i, n in enumerate(actuator_names) if 'head' in n]
+        self.idx_act_platform = [i for i, n in enumerate(actuator_names) if 'platform' in n]
 
+        # 2. 关节位置索引 (同理修复)
+        joint_names = [mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_JOINT, i) 
+                       for i in range(self.model.njnt)]
+        
+        # 假设关节命名是 'l_joint1', 'r_joint1' 等
+        self.idx_jnt_left = [i for i, n in enumerate(joint_names) if 'l_joint' in n]
+        self.idx_jnt_right = [i for i, n in enumerate(joint_names) if 'r_joint' in n]
+        self.idx_jnt_head = [i for i, n in enumerate(joint_names) if 'head' in n]
+        self.idx_jnt_platform = [i for i, n in enumerate(joint_names) if 'platform' in n]
+        
+        # 打印调试信息 (这样你就能看到现在是 6 个了)
+        print(f"🔍 索引映射结果:")
+        print(f"   - 左臂执行器ID (Count: {len(self.idx_act_left)}): {self.idx_act_left}")
+        print(f"   - 右臂执行器ID (Count: {len(self.idx_act_right)}): {self.idx_act_right}")
+        print(f"   - 升降台执行器ID: {self.idx_act_platform}")
+
+    # =========================================================================
+    #                               核心控制接口
+    # =========================================================================
+
+    def step(self):
+        """
+        执行一步仿真。
+        注意：不再需要传入 action 参数，而是直接使用内部维护的 self.current_ctrl
+        """
         # 1. 写入控制指令
-        self.data.ctrl[:] = action
+        self.data.ctrl[:] = self.current_ctrl
         
-        # 2. 物理引擎计算
-        # 通常物理频率比控制频率高，这里演示 1:1，实际可能需要循环多次 mj_step
+        # 2. 物理步进
         mujoco.mj_step(self.model, self.data)
         
-        # 3. 更新画面 (如果开启)
+        # 3. 渲染
         if self.viewer and self.viewer.is_running():
             self.viewer.sync()
 
-    def get_state(self):
-        """
-        获取机器人当前状态
-        Returns:
-            qpos (np.array): 关节位置
-            qvel (np.array): 关节速度
-        """
-        return self.data.qpos.copy(), self.data.qvel.copy()
+    # =========================================================================
+    #                               分部控制 Setter
+    # =========================================================================
+
+    def set_left_arm_cmd(self, cmd):
+        """设置左臂指令 (Pos/Torque)"""
+        if len(cmd) != len(self.idx_act_left):
+            print(f"⚠️ 左臂维度错误: 需要 {len(self.idx_act_left)}, 收到 {len(cmd)}")
+            return
+        self.current_ctrl[self.idx_act_left] = cmd
+
+    def set_right_arm_cmd(self, cmd):
+        """设置右臂指令 (Pos/Torque)"""
+        if len(cmd) != len(self.idx_act_right):
+            print(f"⚠️ 右臂维度错误: 需要 {len(self.idx_act_right)}, 收到 {len(cmd)}")
+            return
+        self.current_ctrl[self.idx_act_right] = cmd
+
+    def set_head_cmd(self, cmd):
+        """设置头部指令"""
+        self.current_ctrl[self.idx_act_head] = cmd
+
+    def set_platform_cmd(self, cmd):
+        """设置升降台指令"""
+        self.current_ctrl[self.idx_act_platform] = cmd
+
+    def set_whole_body_cmd(self, cmd):
+        """设置全身指令 (兼容旧接口)"""
+        if len(cmd) != self.nu:
+            return
+        self.current_ctrl[:] = cmd
+
+    # =========================================================================
+    #                               分部状态 Getter
+    # =========================================================================
+
+    def get_left_arm_qpos(self):
+        """获取左臂关节角度"""
+        # qpos 的索引可能与 joint 索引需要通过 jnt_qposadr 转换，
+        # 但对于简单转动关节，通常是直接映射的。严谨做法如下：
+        indices = [self.model.jnt_qposadr[i] for i in self.idx_jnt_left]
+        return self.data.qpos[indices]
+
+    def get_right_arm_qpos(self):
+        """获取右臂关节角度"""
+        indices = [self.model.jnt_qposadr[i] for i in self.idx_jnt_right]
+        return self.data.qpos[indices]
 
     def get_time(self):
-        """获取当前仿真时间"""
         return self.data.time
 
-    def reset(self):
-        """重置仿真环境"""
-        mujoco.mj_resetData(self.model, self.data)
-        if self.viewer:
-            self.viewer.sync()
-            
     def is_alive(self):
-        """检查 Viewer 是否还活着 (如果关闭了窗口，仿真也应该停止)"""
         if self.render and self.viewer:
             return self.viewer.is_running()
         return True
 
     def close(self):
-        """关闭环境"""
         if self.viewer:
             self.viewer.close()
