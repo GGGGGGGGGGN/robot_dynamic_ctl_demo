@@ -2,7 +2,7 @@
   <include file="robot_body.xml"/>
 
   <actuator>  
-    <position name="act_platform" joint="platform_joint" kp="20000" kv="2000" ctrlrange="0 0.82"/>
+    <!-- <position name="act_platform" joint="platform_joint" kp="20000" kv="2000" ctrlrange="0 0.82"/> -->
 
     <position name="act_head1" joint="head_joint1" kp="100" kv="10" ctrlrange="-1.256 1.256"/>
     <position name="act_head2" joint="head_joint2" kp="100" kv="10" ctrlrange="-0.419 0.419"/>

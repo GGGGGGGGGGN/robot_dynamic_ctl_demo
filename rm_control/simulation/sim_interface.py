@@ -1,38 +1,26 @@
-import time
-import os
+
+from numpy.lib._format_impl import EXPECTED_KEYS
 import numpy as np
 import mujoco
 import mujoco.viewer
 
-# 假设你的路径管理模块
-from rm_control.assets import get_model_path_torque
-from rm_control.assets import get_model_path_position
-
 class SimInterface:
-    def __init__(self, mode='position', render=True):
-        """
-        初始化仿真接口
-        
-        Args:
-            mode (str): 'position' (位置控制) 或 'torque' (力矩控制)
-            render (bool): 是否开启图形界面 (GUI)
-        """
+    def __init__(self, model_path, render=True):
+        self.model_path = model_path
         self.render = render
-        self.mode = mode
-        
-        # --- 1. 加载模型 ---
-        if mode == 'position':
-            xml_path = get_model_path_position()
-        elif mode == 'torque':
-            xml_path = get_model_path_torque()
-        else:
-            raise ValueError(f"未知模式: {mode}")
-
-        print(f"📖 [SimInterface] 正在加载模型: {xml_path}")
-        
+        if not self.model_path:
+            raise ValueError("❌ 必须提供模型路径！SimInterface 不再自带模型了。")
+        print(f"🔄 SimInterface 正在加载: {self.model_path}")
         try:
-            self.model = mujoco.MjModel.from_xml_path(xml_path)
+            if self.model_path.endswith(".xml"):
+                self.model = mujoco.MjModel.from_xml_path(self.model_path)
+            elif self.model_path.endswith(".mjb"):
+                self.model = mujoco.MjModel.from_binary_path(self.model_path)
+                
             self.data = mujoco.MjData(self.model)
+
+            self.control_mode = self._detect_control_mode()
+            print(f"🤖 自动识别控制模式: {self.control_mode}")
         except ValueError as e:
             print(f"❌ 模型加载失败: {e}")
             raise
@@ -50,7 +38,7 @@ class SimInterface:
         # --- 4. 建立索引映射 (关键步骤) ---
         self._init_indices()
 
-        print(f"✅ 模型加载成功！模式: {mode.upper()}, Actuators: {self.nu}")
+        print(f"✅ 模型加载成功！模式: {self.control_mode.upper()}, Actuators: {self.nu}")
         
         # --- 5. 启动 Viewer ---
         self.viewer = None
@@ -145,6 +133,18 @@ class SimInterface:
     #                               分部状态 Getter
     # =========================================================================
 
+    def get_state(self):
+        """
+        获取机器人整体状态 (全量)
+        
+        Returns:
+            qpos (np.array): 整体关节位置 (维度 nq)
+            qvel (np.array): 整体关节速度 (维度 nv)
+        """
+        # 必须使用 .copy()，否则返回的是指针，数据会在计算过程中突变
+        return self.data.qpos.copy(), self.data.qvel.copy()
+    
+    
     def get_left_arm_qpos(self):
         """获取左臂关节角度"""
         # qpos 的索引可能与 joint 索引需要通过 jnt_qposadr 转换，
@@ -168,3 +168,18 @@ class SimInterface:
     def close(self):
         if self.viewer:
             self.viewer.close()
+
+
+    def _detect_control_mode(self):
+            """
+            智能判别模式：文件名优先 -> 物理属性兜底
+            """
+            # === 策略 1: 检查文件名 (最稳) ===
+            # 既然你有两个文件，通常一个叫 scene_torque.xml，一个叫 scene_pos.xml
+            path_str = self.model_path.lower()
+            if "torque" in path_str:
+                return "torque"
+            if "pos" in path_str or "joint" in path_str:
+                return "position"
+            else:
+                return "unknown"

@@ -44,6 +44,11 @@
     <mesh name="l_hand_base_link" content_type="model/stl" file="l_hand_base_link.STL"/>
   </asset>
 
+  <contact>
+    <exclude body1="platform_base_link" body2="l_link1"/>
+    <exclude body1="platform_base_link" body2="r_link1"/>
+  </contact>
+
   <worldbody>
     <light name="sun" directional="true" pos="-1 -1 3" dir="0.3 0.3 -1" castshadow="true" 
            diffuse=".7 .7 .7" specular=".3 .3 .3"/>
@@ -56,7 +61,8 @@
     <geom type="mesh" contype="0" conaffinity="0" rgba="0.79216 0.81961 0.93333 1" mesh="body_base_link"/>
     <body name="platform_base_link" pos="0 -0.11663 0.337">
       <inertial pos="0.0153361 -0.0500754 0.00403219" quat="0.516458 0.462527 0.474746 0.542177" mass="3.36802" diaginertia="0.0426843 0.0275199 0.0187536"/>
-      <joint name="platform_joint" pos="0 0 0" axis="0 0 1" type="slide" range="-0.01 0.82" actuatorfrcrange="-600 600"/>
+      <joint name="platform_joint" pos="0 0 0" axis="0 0 1" type="slide" range="-0.01 0.82" actuatorfrcrange="-600 600"/>  
+      <!-- 注释掉躯体的关节，让他固定浮空 -->
       <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.79216 0.81961 0.93333 1" mesh="platform_base_link"/>
       <geom type="mesh" contype="0" conaffinity="0" rgba="0.79216 0.81961 0.93333 1" mesh="platform_base_link"/>
       <geom pos="0.1 -0.1103 0.031645" quat="4.28004e-05 0.382684 -1.77285e-05 0.923879" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.79216 0.81961 0.93333 1" mesh="l_base_link1"/>

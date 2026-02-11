@@ -2,7 +2,7 @@
   <include file="robot_body.xml"/>
 
   <actuator>
-    <motor name="act_platform" joint="platform_joint" gear="1" ctrlrange="0 300"/>
+    <!-- <motor name="act_platform" joint="platform_joint" gear="1" ctrlrange="0 300"/> -->
 
     <motor name="act_head1" joint="head_joint1" gear="1" ctrlrange="-10 10"/>
     <motor name="act_head2" joint="head_joint2" gear="1" ctrlrange="-10 10"/>

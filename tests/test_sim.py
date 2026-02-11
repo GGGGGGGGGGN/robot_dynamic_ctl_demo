@@ -1,11 +1,13 @@
 import time
 import numpy as np
+import mujoco
 from rm_control.simulation.sim_interface import SimInterface
+from rm_control.assets import get_model_path_torque
 
 def main():
     # 1. 初始化 (位置控制模式)
-    sim = SimInterface(mode='position')
-    
+    sim = SimInterface(get_model_path_torque())
+
     while sim.is_alive():
         t = sim.get_time()
         
