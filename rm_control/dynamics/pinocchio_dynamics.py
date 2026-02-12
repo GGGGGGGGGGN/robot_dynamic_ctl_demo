@@ -3,51 +3,51 @@ import numpy as np
 import os
 
 class PinocchioDynamics:
-    def __init__(self, urdf_path, active_joint_names=None, ee_name=None):
+    def __init__(self, urdf_path, active_joint_names=None, ee_name="panda_link7"):
         """
-        Pinocchio 动力学后端 (支持模型裁剪)
+        Pinocchio 动力学后端 (默认锁定 Panda 7轴)
         Args:
             urdf_path: URDF 文件路径
-            active_joint_names (list): [关键] MuJoCo 里存在的关节名字列表。
-                                       如果不传，加载完整 URDF。
-                                       如果传了，会自动锁死 URDF 里多余的轮子/关节。
-            ee_name: 末端执行器名字
+            active_joint_names (list):如果不传，默认使用 Panda 的 7 个关节。
+            ee_name: 末端执行器名字 (默认 panda_link7)
         """
         if not os.path.exists(urdf_path):
             raise FileNotFoundError(f"❌ URDF not found: {urdf_path}")
 
-        # 1. 加载完整 URDF 模型 (包含所有轮子)
+        # 1. 加载完整 URDF 模型 (此时是 9 轴: 7臂 + 2手)
         full_model = pin.buildModelFromUrdf(urdf_path)
         
-        # 2. 模型裁剪 (Model Reduction)
-        if active_joint_names is not None:
-            print(f"✂️ [Pinocchio] 收到白名单，正在裁剪模型...")
+        # 🔥 [修改点 1] 如果没有传入关节列表，默认使用 Panda 的 7 个关节
+        if active_joint_names is None:
+            active_joint_names = [
+                "panda_joint1", "panda_joint2", "panda_joint3", 
+                "panda_joint4", "panda_joint5", "panda_joint6", "panda_joint7"
+            ]
+            print(f"ℹ️ [Pinocchio] 未指定关节列表，默认加载 Panda 前 7 轴模式。")
+
+        # 2. 模型裁剪逻辑 (核心)
+        # 找出不在 active_joint_names 里的所有关节 ID，准备锁死它们
+        joints_to_lock_ids = []
+        
+        for jname in full_model.names:
+            if jname == "universe": continue # 跳过基座
             
-            # 找出需要被锁死的关节 ID
-            joints_to_lock_ids = []
+            # 如果 URDF 里的关节名字不在我们的白名单里 -> 锁死！
+            # (这意味着 panda_finger_joint1/2 会被选中)
+            if jname not in active_joint_names:
+                jid = full_model.getJointId(jname)
+                joints_to_lock_ids.append(jid)
+        
+        # 执行裁剪
+        if len(joints_to_lock_ids) > 0:
+            # 获取参考构型 (将要锁死的关节固定在 0 位置)
+            q_ref = pin.neutral(full_model)
             
-            # 遍历 URDF 里的所有关节
-            for jname in full_model.names:
-                if jname == "universe": continue # 跳过宇宙基座
-                
-                # 如果这个关节不在 MuJoCo 的白名单里，就锁死它！
-                if jname not in active_joint_names:
-                    # 获取 ID
-                    jid = full_model.getJointId(jname)
-                    joints_to_lock_ids.append(jid)
-                    # print(f"   🔒 锁死冗余关节: {jname}")
-            
-            if len(joints_to_lock_ids) > 0:
-                # 设定被锁死关节的默认位置 (通常是 0)
-                q_ref = pin.neutral(full_model)
-                
-                # 生成缩减后的模型 (只包含 MuJoCo有的关节)
-                self.model = pin.buildReducedModel(full_model, joints_to_lock_ids, q_ref)
-                print(f"✅ 模型裁剪完成! 原自由度: {full_model.nv} -> 现自由度: {self.model.nv}")
-            else:
-                print("⚠️ 白名单覆盖了所有关节，无需裁剪。")
-                self.model = full_model
+            # 生成缩减后的模型
+            self.model = pin.buildReducedModel(full_model, joints_to_lock_ids, q_ref)
+            print(f"✅ 模型裁剪完成! 原自由度: {full_model.nv} -> 现自由度: {self.model.nv}")
         else:
+            # 如果白名单包含所有关节，就不裁剪
             self.model = full_model
 
         # 3. 创建数据结构
@@ -56,32 +56,32 @@ class PinocchioDynamics:
         self.nq = self.model.nq
 
         # 4. 确定末端 ID
-        if ee_name and self.model.existFrame(ee_name):
-            self.ee_id = self.model.getFrameId(ee_name)
+        # 🔥 [修改点 2] 如果没传 ee_name，默认用 panda_link7，防止报错
+        target_ee = ee_name if ee_name else "panda_link7"
+        
+        if self.model.existFrame(target_ee):
+            self.ee_id = self.model.getFrameId(target_ee)
         else:
+            # 如果连 panda_link7 都没有，就退化到最后一帧
             self.ee_id = self.model.nframes - 1
-            # print(f"⚠️ [Pinocchio] 未指定 ee_name，默认使用: {self.model.frames[self.ee_id].name}")
+            print(f"⚠️ [Pinocchio] 找不到 {target_ee}，使用默认末端: {self.model.frames[self.ee_id].name}")
 
     def update(self, q, dq):
         """同步状态"""
-        # 简单的维度检查
         if len(q) != self.model.nq:
-            print(f"⚠️ [Error] 维度不匹配: MuJoCo q={len(q)}, Pinocchio nq={self.model.nq}")
+            print(f"⚠️ [Error] 维度不匹配: 输入q={len(q)}, 模型nq={self.model.nq}")
             return
-
+        # 计算所有的动力学项 (M, h, J 等)
         pin.computeAllTerms(self.model, self.data, q, dq)
 
     def get_dynamics(self):
-        """返回 M, h"""
+        """返回 质量矩阵 M 和 非线性项 h (h = C*dq + g)"""
         return self.data.M.copy(), self.data.nle.copy()
 
     def get_jacobian(self):
-        """
-        获取末端雅可比矩阵 (6 x nv)
-        注意：必须在 update() 之后调用
-        """
-        # 使用 LOCAL_WORLD_ALIGNED (原点在末端，方向对齐世界)
-        # 这是做笛卡尔空间控制最常用的 Frame
+        """获取末端雅可比矩阵 (6 x 7)"""
+        # LOCAL_WORLD_ALIGNED: 原点在末端 Link 上，但方向与世界坐标系对齐
+        # 这是做 CTC 和 笛卡尔阻抗控制最舒服的坐标系
         J = pin.getFrameJacobian(
             self.model, 
             self.data, 

@@ -6,13 +6,12 @@ import mujoco.viewer
 
 # 导入我们在 rm_control/__init__.py 里写好的路径工具
 # 如果报错 "ModuleNotFoundError"，请确保你已经 pip install -e . 安装了包
-from rm_control.assets import get_model_path_torque
-from rm_control.assets import get_model_path_position
+from rm_control.assets import get_model_path_xml
 
 def main():
     # 1. 加载模型
     # 使用我们刚写好的 全身动力学模型
-    xml_path = get_model_path_torque()
+    xml_path = get_model_path_xml()
     print(f"Loading model from: {xml_path}")
     
     try:
@@ -30,7 +29,7 @@ def main():
     print("-" * 30)
 
     # 简单验证：如果 nu 不等于 15 (1腰+2头+12臂)，说明模型定义有误
-    expected_nu = 15
+    expected_nu = 7
     if model.nu != expected_nu:
         print(f"⚠️ 警告: 执行器数量 ({model.nu}) 与预期 ({expected_nu}) 不符，请检查 XML！")
     else:
