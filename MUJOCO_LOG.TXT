@@ -1,0 +1,6 @@
+Thu Feb 12 15:23:33 2026
+WARNING: Pre-allocated visual geom buffer is full. Increase maxgeom above 100000. Time = 0.0000.
+
+Thu Feb 12 15:39:56 2026
+WARNING: Pre-allocated visual geom buffer is full. Increase maxgeom above 100000. Time = 0.0000.
+

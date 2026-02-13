@@ -18,12 +18,6 @@ def main():
     # 加载 MuJoCo
     xml_path = get_model_path_xml()
     sim = SimInterface(xml_path, render=True)
-
-    # 🔥 关键步骤：清理 MuJoCo 的物理干扰 (Nuclear Option)
-    # # 这样可以确保是一个纯粹的刚体，完全由我们的 PD 控制器接管
-    # sim.model.jnt_stiffness[:] = 0   # 关掉关节弹簧
-    # sim.model.dof_damping[:] = 0     # 关掉关节阻尼
-    # sim.model.dof_armature[:] = 0    # 关掉电枢惯量
     
     # 设置为纯力矩模式 (Gain=1, Bias=0)
     sim.set_control_mode("torque") 
