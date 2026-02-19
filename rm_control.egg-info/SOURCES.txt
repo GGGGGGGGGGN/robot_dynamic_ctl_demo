@@ -8,3 +8,11 @@ rm_control.egg-info/dependency_links.txt
 rm_control.egg-info/requires.txt
 rm_control.egg-info/top_level.txt
 rm_control/assets/__init__.py
+rm_control/assets/benchmark_scene.xml
+tests/test.py
+tests/test1.py
+tests/test2.py
+tests/test3.py
+tests/test4.py
+tests/test_benchmark.py
+tests/test_step_ctrl.py

@@ -63,7 +63,7 @@ def main():
     # =========================================================
     # 3. 后处理画图
     # =========================================================
-    result_fig_name = 'crontrol_test_'+ctc_ctrl.name
+    result_fig_name = 'crontrol_test_'+ctc_ctrl.name+'.png'
     result_fig_path = os.path.join(result_fig_dir, result_fig_name)
     plotter = BenchmarkPlotter(run_name="final_test2")
     plotter.plot(history_data, save_path=result_fig_path)

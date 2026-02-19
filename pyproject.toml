@@ -16,7 +16,7 @@ license = { text = "MIT" }
 dependencies = [
     "matplotlib",
     "mujoco>=3.0.0",
-   # "pin", # Pinocchio 的 pip 包名通常是 pin 或 pinocchio ,win 可以用conda安装
+   # "pin", # Pinocchio 的 pip 包名通常是 pin 或 pinocchio ,win 可以用conda安装 mamba install pinocchio -c conda-forge
     "pyyaml",
 ]
 

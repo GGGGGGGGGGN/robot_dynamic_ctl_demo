@@ -106,6 +106,39 @@ class SineWaveTrajectory(TrajectoryGenerator):
             
         return q_ref, dq_ref, ddq_ref
 
+
+class StepTrajectory:
+    def __init__(self, target_joint_id, start_val, end_val, step_time=0.5):
+        """
+        Args:
+            start_val: 起始角度 (t < step_time)
+            end_val:   目标角度 (t >= step_time)
+        """
+        self.id = target_joint_id
+        self.start_val = start_val # 新增：记录起点
+        self.end_val = end_val     # 新增：记录终点
+        self.t_step = step_time
+        
+        # 定义一个安全的初始姿态 (Panda Ready Pose)
+        # J4 初始值得设为负数，防止一开始就撞墙
+        self.q_home = np.array([0, -0.785, 0, -2.356, 0, 1.571, 0.785])
+        
+        # 强制覆盖当前测试关节的初始值
+        self.q_home[self.id] = self.start_val
+
+    def get_state(self, t):
+        q_ref = self.q_home.copy()
+        
+        # 阶跃逻辑
+        if t >= self.t_step:
+            q_ref[self.id] = self.end_val
+        else:
+            q_ref[self.id] = self.start_val
+            
+        return q_ref, np.zeros(7), np.zeros(7)
+
+
+
 # ==============================================================================
 # 单元测试 (Unit Test)
 # 直接运行这个文件，可以检查轨迹是否正常

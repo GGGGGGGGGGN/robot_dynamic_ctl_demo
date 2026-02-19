@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # 引入你的库
 from rm_control.simulation.sim_interface import SimInterface
 from rm_control.dynamics.pinocchio_dynamics import PinocchioDynamics
-from rm_control.controllers.joint_pd import JointPDController
+from rm_control.controllers.controllers import JointPDController
 from rm_control.assets import get_model_path_xml, get_model_path_urdf
 
 def main():
