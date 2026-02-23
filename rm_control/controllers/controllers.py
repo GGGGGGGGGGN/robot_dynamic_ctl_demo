@@ -61,41 +61,38 @@ class ComputedTorqueController:
 
 
 class ComputedTorqueControllerWithFriction:
-    def __init__(self, kp, kd, pin_dyn, fric_coeff=None):
+    def __init__(self, kp, kd, pin_dyn, kv_fric=None, kc_fric=None):
         """
-        依赖：M (惯量), h (非线性), Friction (经验模型)
+        升级版：包含 粘性摩擦(kv) 和 库仑/静摩擦(kc) 补偿的 CTC
         """
-        self.name = "CTC + Friction Comp"
+        self.name = "CTC + Full Friction Comp"
         self.kp = np.array(kp)
         self.kd = np.array(kd)
         self.pin_dyn = pin_dyn
         
-        # 如果没有传入摩擦系数，使用针对 Panda 的经验值
-        if fric_coeff is None:
-            # J5-J7 需要显著补偿，J1-J4 较小
-            self.kv_fric = np.array([0.5, 0.5, 0.5, 0.5, 1.5, 1.5, 1.5])
-        else:
-            self.kv_fric = np.array(fric_coeff)
+        # 粘性摩擦系数 (与速度成正比)
+        self.kv_fric = np.array([0.5, 0.5, 0.5, 0.5, 1.5, 1.5, 1.5]) if kv_fric is None else np.array(kv_fric)
+        # 库仑摩擦系数 (恒定阻力，只与速度方向有关)
+        self.kc_fric = np.array([0.1, 0.1, 0.1, 0.1, 0.2, 0.2, 0.2]) if kc_fric is None else np.array(kc_fric)
 
     def update(self, q, dq, q_ref, dq_ref, ddq_ref):
-        # 1. 模型更新
         self.pin_dyn.update(q, dq)
         M, h = self.pin_dyn.get_dynamics()
         
-        # 2. 计算误差
+        # 🔥 神级修复：强行把 MuJoCo XML 里隐藏的 armature (0.1) 补回到质量矩阵里！
+        # 因为 XML 里每个关节的 armature 都是 0.1
+        M_real = M + np.diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        
         e = q_ref - q
         de = dq_ref - dq
         
-        # 3. 惯性力项 (M * a_des)
-        # 即使对于小惯量关节，因为乘了 M，这部分力矩会很小
         acc_des = ddq_ref + self.kp * e + self.kd * de
-        tau_inertial = M @ acc_des
+        tau_inertial = M_real @ acc_des
         
-        # 4. 摩擦力补偿项 (Viscous Friction)
-        # 专门对抗 MuJoCo 的 damping，这是 CTC 这种纯刚体动力学缺少的
-        tau_fric = self.kv_fric * dq
+        # 🔥 工业级摩擦力补偿：粘性摩擦 (kv * dq) + 库仑摩擦 (kc * sign(dq))
+        # np.sign(dq) 会提取速度的方向 (1, -1, 或 0)
+        tau_fric = self.kv_fric * dq + self.kc_fric * np.sign(dq)
         
-        # 5. 总力矩 = 惯性 + 非线性 + 摩擦
         return tau_inertial + h + tau_fric
 
 # =========================================================
