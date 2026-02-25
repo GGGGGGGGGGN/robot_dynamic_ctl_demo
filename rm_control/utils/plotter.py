@@ -94,3 +94,56 @@ class BenchmarkPlotter:
         plt.savefig(save_path, dpi=200)
         print(f"✅ 保存成功！")
         plt.close(fig)
+        
+        
+        
+
+def plot_tracking_comparison(t, ref_q, ref_dq, 
+                             q1, dq1, err1, label1, color1,
+                             q2, dq2, err2, label2, color2,
+                             joint_idx=1, title_suffix="", save_path="comparison.png"):
+    """
+    专门用于对比两个控制器（如 PD 和 CTC）跟踪性能的画图工具
+    """
+    print("📊 正在绘制轨迹分析图...")
+    plt.figure(figsize=(12, 10))
+
+    # 子图 1：位置跟踪
+    plt.subplot(3, 1, 1)
+    plt.plot(t, ref_q, 'k--', linewidth=2, label='Target Position')
+    plt.plot(t, q1, color1, alpha=0.7, label=label1)
+    plt.plot(t, q2, color2, alpha=0.7, label=label2)
+    plt.ylabel('Position (rad)', fontsize=12)
+    plt.title(f'Joint {joint_idx} Position Tracking {title_suffix}', fontsize=14)
+    plt.legend()
+    plt.grid(True)
+
+    # 子图 2：速度跟踪
+    plt.subplot(3, 1, 2)
+    plt.plot(t, ref_dq, 'k--', linewidth=2, label='Target Velocity')
+    plt.plot(t, dq1, color1, alpha=0.7, label=label1)
+    plt.plot(t, dq2, color2, alpha=0.7, label=label2)
+    plt.ylabel('Velocity (rad/s)', fontsize=12)
+    plt.title(f'Joint {joint_idx} Velocity Tracking', fontsize=14)
+    plt.legend()
+    plt.grid(True)
+
+    # 子图 3：跟踪误差
+    plt.subplot(3, 1, 3)
+    plt.plot(t, err1, color1, alpha=0.7, label=f'{label1} Error')
+    plt.plot(t, err2, color2, alpha=0.7, label=f'{label2} Error')
+    plt.axhline(0, color='k', linestyle='--', linewidth=1)
+    plt.xlabel('Time (s)', fontsize=12)
+    plt.ylabel('Error (rad)', fontsize=12)
+    plt.title(f'Joint {joint_idx} Tracking Error', fontsize=14)
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+    
+            # 5. 保存
+    print(f"💾 正在保存全关节结果图表到: {save_path} ...")
+    plt.savefig(save_path, dpi=200)
+    print(f"✅ 保存成功！")
+    

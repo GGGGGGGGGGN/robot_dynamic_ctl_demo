@@ -1,37 +1,43 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# ==============================================================================
+# 基类定义
+# ==============================================================================
 class TrajectoryGenerator:
-    def __init__(self, freq=0.2, amp=0.25, duration=10.0, dt=0.001):
+    def __init__(self, duration=10.0, dt=0.001):
         """
         轨迹生成器基类
-        :param freq: 运动频率 (Hz)
-        :param amp: 运动幅度 (rad)
         :param duration: 轨迹总时长 (s)
         :param dt: 采样时间步长 (s)
         """
-        self.freq = freq
-        self.amp = amp
         self.duration = duration
         self.dt = dt
-        
-        # 🔥 标准 Ready Pose (伸展姿态)
-        # J1-J7，确保腕关节(J6)在 1.8 左右，避免自碰撞
-        self.q_home = np.array([0.0, -0.785, 0.0, -2.356, 0.0, 1.80, 0.785])
-        
-        # 预计算时间轴
+        # 预计算时间轴，主要用于画图和预存
         self.time_steps = np.arange(0, duration, dt)
-
+        
+    def print_info(self):
+        """标准化的轨迹信息打印"""
+        print("\n" + "="*50)
+        print(f"📍 轨迹配置信息: {self.__class__.__name__}")
+        print(f"   - 总时长: {self.duration} s")
+        print(f"   - 采样步长: {self.dt} s")
+        if hasattr(self, 'q_target'):
+            print(f"   - 目标姿态: {np.round(self.q_target, 3)}")
+        if hasattr(self, 'freq'):
+            print(f"   - 运动频率: {self.freq} Hz")
+        print("="*50 + "\n")
+        
     def get_state(self, t):
         """
         获取 t 时刻的目标状态
-        :return: q_ref, dq_ref, ddq_ref (均为 np.array)
+        :return: q_ref, dq_ref, ddq_ref (均为 np.array, shape=(7,))
         """
         raise NotImplementedError("子类必须实现 get_state 方法")
 
-    def plot_trajectory(self):
+    def plot_trajectory(self, filename="trajectory_check.png"):
         """
-        [调试工具] 直接画出轨迹曲线，用于检查合理性
+        [调试工具] 自动遍历时间轴，画出位置、速度、加速度曲线
         """
         qs, dqs, ddqs = [], [], []
         for t in self.time_steps:
@@ -40,96 +46,115 @@ class TrajectoryGenerator:
             dqs.append(dq)
             ddqs.append(ddq)
         
-        qs = np.array(qs)
-        dqs = np.array(dqs)
-        ddqs = np.array(ddqs)
+        qs, dqs, ddqs = np.array(qs), np.array(dqs), np.array(ddqs)
         
         # 绘图
         fig, axes = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
         
-        # 1. 位置
-        for i in range(7):
-            axes[0].plot(self.time_steps, qs[:, i], label=f'J{i+1}')
-        axes[0].set_title("Joint Position (rad)")
-        axes[0].set_ylabel("Pos")
-        axes[0].legend(ncol=7, fontsize='x-small', loc='upper right')
-        axes[0].grid(True)
+        titles = ["Joint Position (rad)", "Joint Velocity (rad/s)", "Joint Acceleration (rad/s^2)"]
+        ylabels = ["Pos", "Vel", "Acc"]
+        data_list = [qs, dqs, ddqs]
         
-        # 2. 速度
-        for i in range(7):
-            axes[1].plot(self.time_steps, dqs[:, i], label=f'J{i+1}')
-        axes[1].set_title("Joint Velocity (rad/s)")
-        axes[1].set_ylabel("Vel")
-        axes[1].grid(True)
-
-        # 3. 加速度
-        for i in range(7):
-            axes[2].plot(self.time_steps, ddqs[:, i], label=f'J{i+1}')
-        axes[2].set_title("Joint Acceleration (rad/s^2)")
-        axes[2].set_ylabel("Acc")
-        axes[2].set_xlabel("Time (s)")
-        axes[2].grid(True)
-        
+        for ax, data, title, ylabel in zip(axes, data_list, titles, ylabels):
+            for i in range(7):
+                ax.plot(self.time_steps, data[:, i], label=f'J{i+1}')
+            ax.set_title(title)
+            ax.set_ylabel(ylabel)
+            ax.grid(True)
+            if ax == axes[0]:
+                ax.legend(ncol=7, fontsize='x-small', loc='upper right')
+                
+        axes[-1].set_xlabel("Time (s)")
         plt.tight_layout()
-        plt.savefig("trajectory_check.png")
-        print("✅ 轨迹检查图已保存至 trajectory_check.png")
-        # plt.show() # 如果在服务器或无法弹窗的环境，请注释掉这行
+        plt.savefig(filename)
+        print(f"✅ 轨迹检查图已保存至 {filename}")
 
 
-class SineWaveTrajectory(TrajectoryGenerator):
+# ==============================================================================
+# 具体轨迹实现类
+# ==============================================================================
+class FixedTrajectory(TrajectoryGenerator):
     """
-    关节空间正弦波轨迹 (用于测试电机响应)
+    固定姿态轨迹：用于测试控制器在极端姿态下的静态保持能力 (对抗稳态误差和重力)
     """
-    def get_state(self, t):
-        omega = 2 * np.pi * self.freq
+    def __init__(self, q_target=None, duration=10.0, dt=0.001):
+        super().__init__(duration, dt)
         
-        q_ref = np.zeros(7)
+        if q_target is None:
+            # 默认使用高重力力矩挑战姿态：关节 2 (肩) 和 关节 4 (肘) 承受极大扭矩
+            self.q_target = np.array([0.0, -0.5, 0.0, -2.0, 0.0, 1.5, 0.785], dtype=float)
+        else:
+            self.q_target = np.array(q_target, dtype=float)
+
+    def get_state(self, t):
+        """
+        无论时间 t 是多少，始终返回固定的目标位置，以及为 0 的速度和加速度
+        """
+        q_ref = self.q_target.copy()
         dq_ref = np.zeros(7)
         ddq_ref = np.zeros(7)
         
+        return q_ref, dq_ref, ddq_ref
+    
+class SineTrajectory(TrajectoryGenerator):
+    """
+    灵活的正弦轨迹：支持为每个关节独立设置初始位姿和振幅 (你刚刚实验用的版本)
+    """
+    def __init__(self, q_init, amplitude, freq=1.0, duration=10.0, dt=0.001):
+        super().__init__(duration, dt)
+        self.q_init = np.array(q_init, dtype=float)
+        self.amplitude = np.array(amplitude, dtype=float)
+        self.freq = freq
+        self.w = 2 * np.pi * self.freq
+
+    def get_state(self, t):
+        # 🔥 修改为 (1 - cos) 轨迹，保证开局速度绝对为 0，防止观测器被瞬间冲爆！
+        q_ref = self.q_init + self.amplitude * (1 - np.cos(self.w * t))
+        dq_ref = self.amplitude * self.w * np.sin(self.w * t)
+        ddq_ref = self.amplitude * (self.w**2) * np.cos(self.w * t)
+        
+        return q_ref, dq_ref, ddq_ref
+
+class PhaseSineTrajectory(TrajectoryGenerator):
+    """
+    带有相位差的波浪正弦轨迹：用于测试全身协调性 (你早期的版本)
+    """
+    def __init__(self, freq=0.2, amp=0.25, duration=10.0, dt=0.001):
+        super().__init__(duration, dt)
+        self.freq = freq
+        self.amp = amp
+        self.q_home = np.array([0.0, -0.785, 0.0, -2.356, 0.0, 1.80, 0.785])
+        self.w = 2 * np.pi * self.freq
+
+    def get_state(self, t):
+        q_ref, dq_ref, ddq_ref = np.zeros(7), np.zeros(7), np.zeros(7)
         for i in range(7):
-            # 相位差：让机械臂动起来像波浪，而不是整体点头
             phase = i * 0.5 
-            
-            # 幅度衰减：根部关节幅度小(0.5x)，腕部幅度大(1.0x)
             current_amp = self.amp * (0.5 if i < 2 else 1.0)
             
-            # 计算理论公式
-            # Pos: q0 + A * sin(wt + phi)
-            q_ref[i] = self.q_home[i] + current_amp * np.sin(omega * t + phase)
-            
-            # Vel: A * w * cos(wt + phi)
-            dq_ref[i] = current_amp * omega * np.cos(omega * t + phase)
-            
-            # Acc: -A * w^2 * sin(wt + phi)
-            ddq_ref[i] = -current_amp * (omega**2) * np.sin(omega * t + phase)
+            q_ref[i] = self.q_home[i] + current_amp * np.sin(self.w * t + phase)
+            dq_ref[i] = current_amp * self.w * np.cos(self.w * t + phase)
+            ddq_ref[i] = -current_amp * (self.w**2) * np.sin(self.w * t + phase)
             
         return q_ref, dq_ref, ddq_ref
 
 
-class StepTrajectory:
-    def __init__(self, target_joint_id, start_val, end_val, step_time=0.5):
-        """
-        Args:
-            start_val: 起始角度 (t < step_time)
-            end_val:   目标角度 (t >= step_time)
-        """
+class StepTrajectory(TrajectoryGenerator):
+    """
+    阶跃轨迹：用于测试控制器的瞬态响应 (超调、上升时间)
+    """
+    def __init__(self, target_joint_id, start_val, end_val, step_time=0.5, duration=10.0, dt=0.001):
+        super().__init__(duration, dt)
         self.id = target_joint_id
-        self.start_val = start_val # 新增：记录起点
-        self.end_val = end_val     # 新增：记录终点
+        self.start_val = start_val
+        self.end_val = end_val
         self.t_step = step_time
         
-        # 定义一个安全的初始姿态 (Panda Ready Pose)
-        # J4 初始值得设为负数，防止一开始就撞墙
-        self.q_home = np.array([0, -0.785, 0, -2.356, 0, 1.571, 0.785])
-        
-        # 强制覆盖当前测试关节的初始值
+        self.q_home = np.array([0, -0.785, 0, -2.356, 0, 1.571, 0.785], dtype=float)
         self.q_home[self.id] = self.start_val
 
     def get_state(self, t):
         q_ref = self.q_home.copy()
-        
-        # 阶跃逻辑
         if t >= self.t_step:
             q_ref[self.id] = self.end_val
         else:
@@ -138,26 +163,21 @@ class StepTrajectory:
         return q_ref, np.zeros(7), np.zeros(7)
 
 
-
 # ==============================================================================
-# 单元测试 (Unit Test)
-# 直接运行这个文件，可以检查轨迹是否正常
+# 单元测试 (直接运行此文件进行测试)
 # ==============================================================================
 if __name__ == "__main__":
     print("🧪 正在测试轨迹生成模块...")
     
-    # 实例化一个正弦轨迹
-    traj = SineWaveTrajectory(freq=0.5, amp=0.3, duration=5.0)
+    # 使用你刚才提供的具体参数进行测试
+    q_init = [0.0, -0.5, 0.0, -2.0, 0.0, 1.5, 0.785]
+    amplitude = [0.8, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0] # 只有关节 1 和 4 在动
     
-    # 打印 t=0 时的状态 (也就是机器人的起始状态)
-    q0, dq0, ddq0 = traj.get_state(0)
-    print(f"📍 起始姿态 (t=0):\n{q0}")
+    traj = SineTrajectory(q_init=q_init, amplitude=amplitude, freq=1.0, duration=4.0)
     
-    # 检查是否有非法值 (NaN)
-    if np.isnan(q0).any():
-        print("❌ 错误：生成的轨迹包含 NaN！")
-    else:
-        print("✅ 数据完整性检查通过")
-        
-    # 画图检查
-    traj.plot_trajectory()
+    q0, dq0, ddq0 = traj.get_state(0.0)
+    print(f"📍 初始位置 (t=0):\n{q0}")
+    print(f"📍 初始速度 (t=0):\n{dq0}")  # 注意：余弦波在 t=0 时速度不为 0！
+    
+    # 自动画图检查
+    traj.plot_trajectory("test_sine_traj.png")

@@ -95,6 +95,128 @@ class ComputedTorqueControllerWithFriction:
         
         return tau_inertial + h + tau_fric
 
+
+
+
+class PIDComputedTorqueController:
+    def __init__(self, kp, ki, kd, pin_dyn, kv_fric=None, kc_fric=None, dt=0.001, integral_limit=10.0):
+        """
+        终极兜底版：包含 摩擦补偿 + 积分项(I) + 抗积分饱和(Anti-windup) 的 PID-CTC 控制器
+        """
+        self.name = "PID-CTC + Friction Comp"
+        self.kp = np.array(kp)
+        self.kd = np.array(kd)
+        self.ki = np.array(ki)  # 🔥 新增：积分增益参数
+        self.pin_dyn = pin_dyn
+        self.dt = dt            # 积分需要用到时间步长
+        
+        # 🔥 新增：误差积分累加器，初始为0
+        self.error_sum = np.zeros(7)
+        
+        # 🔥 新增：抗积分饱和限制 (极其重要！)
+        # 限制积分项最多只能提供一定数值的加速度补偿，防止误差爆炸
+        self.integral_limit = np.array(integral_limit) if isinstance(integral_limit, (list, np.ndarray)) else np.ones(7) * integral_limit
+        
+        # 粘性摩擦与库仑摩擦系数 (保持不变)
+        self.kv_fric = np.array([0.5, 0.5, 0.5, 0.5, 1.5, 1.5, 1.5]) if kv_fric is None else np.array(kv_fric)
+        self.kc_fric = np.array([0.1, 0.1, 0.1, 0.1, 0.2, 0.2, 0.2]) if kc_fric is None else np.array(kc_fric)
+
+    def update(self, q, dq, q_ref, dq_ref, ddq_ref):
+        self.pin_dyn.update(q, dq)
+        M, h = self.pin_dyn.get_dynamics()
+        
+        # 补偿 MuJoCo XML 里隐藏的 armature (0.1)
+        M_real = M + np.diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        
+        e = q_ref - q
+        de = dq_ref - dq
+        
+        # =========================================================
+        # 🔥 核心魔法：积分项与抗饱和机制
+        # =========================================================
+        # 1. 累加误差 (数值积分: error * dt)
+        self.error_sum += e * self.dt
+        
+        # 2. 抗积分饱和 (Clamping/Anti-windup)：强行把累加的误差限制在安全范围内
+        self.error_sum = np.clip(self.error_sum, -self.integral_limit, self.integral_limit)
+        
+        # 3. 计算期望加速度 (引入了 ki * error_sum)
+        acc_des = ddq_ref + self.kp * e + self.kd * de + self.ki * self.error_sum
+        # =========================================================
+
+        # 动力学前馈补偿
+        tau_inertial = M_real @ acc_des
+        
+        # 摩擦力补偿
+        tau_fric = self.kv_fric * dq + self.kc_fric * np.sign(dq)
+        
+        return tau_inertial + h + tau_fric
+    
+
+
+class MomentumObserverCTC:
+    def __init__(self, kp, kd, ko, pin_dyn, dt=0.001, tau_clip = [87.0, 87.0, 87.0, 87.0, 12.0, 12.0, 12.0]):
+        """
+        基于动量观测器 (MOB) 的鲁棒计算力矩控制器
+        :param ko: 观测器带宽增益 (例如 [50, 50, 50...])
+        """
+        self.name = "MOB-CTC"
+        self.kp = np.array(kp)
+        self.kd = np.array(kd)
+        self.ko = np.diag(ko)  # 观测器增益矩阵
+        self.pin_dyn = pin_dyn
+        self.dt = dt
+        self.tau_clip = np.array(tau_clip)
+        
+        # 内部状态记忆
+        self.p_hat = np.zeros(7)       # 虚拟动量估计
+        self.r = np.zeros(7)           # 极其重要的残差 r (估算出的未知负载/摩擦力)
+        self.last_tau_cmd = np.zeros(7) # 记录上一毫秒下发的指令力矩
+        self.is_initialized = False
+
+    def update(self, q, dq, q_ref, dq_ref, ddq_ref):
+        # 1. 更新物理底座，并获取完整的动力学“全家桶”
+        self.pin_dyn.update(q, dq)
+        M, C, g, h = self.pin_dyn.get_full_dynamics()
+        
+        # 依然需要补回 MuJoCo 隐藏的 armature 惯量
+        M_real = M + np.diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]) 
+        
+        # =========================================================
+        # ⚡ 动量观测器核心 (干净无依赖)
+        # =========================================================
+        p = M_real @ dq  # 当前真实动量
+        
+        if not self.is_initialized:
+            self.p_hat = p.copy()
+            self.is_initialized = True
+            
+        # 计算残差 r (外部扰动)
+        self.r = self.ko @ (p - self.p_hat)
+        
+        # 动量估计更新 (数值积分)
+        dp_hat = self.last_tau_cmd + C.T @ dq - g + self.r
+        self.p_hat += dp_hat * self.dt
+        # =========================================================
+
+        # 2. 计算标准 CTC 前馈 + PD 反馈
+        e = q_ref - q
+        de = dq_ref - dq
+        acc_des = ddq_ref + self.kp * e + self.kd * de
+        tau_nominal = M_real @ acc_des + h
+        
+        # 3. 终极一击：名义力矩 - 观测到的扰动
+        tau_cmd = tau_nominal - self.r
+        
+        # 记忆当前下发的力矩，供下一毫秒的观测器使用      
+        tau_actual = np.clip(tau_cmd, -self.tau_clip, self.tau_clip)
+        
+        # 极其致命的一步：把【真实执行的力矩】记入账本，喂给下一帧的观测器！
+        self.last_tau_cmd = tau_actual
+        
+        return tau_actual
+    
+    
 # =========================================================
 # 2. 笛卡尔空间阻抗控制 (Cartesian Impedance Control)
 # =========================================================

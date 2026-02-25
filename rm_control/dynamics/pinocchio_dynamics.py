@@ -74,7 +74,8 @@ class PinocchioDynamics:
             return
         # 计算所有的动力学项 (M, h, J 等) 存入 self.data
         pin.computeAllTerms(self.model, self.data, q, dq)
-
+        pin.computeCoriolisMatrix(self.model, self.data, q, dq)
+        
     def compute_forward_kinematics(self, q):
         """
         🔥 新增功能：计算任意关节角 q 下的末端位姿
@@ -96,6 +97,23 @@ class PinocchioDynamics:
         """返回 质量矩阵 M 和 非线性项 h (h = C*dq + g)"""
         return self.data.M.copy(), self.data.nle.copy()
 
+    def get_full_dynamics(self):
+        """
+        🔥 新增接口：获取完整的动力学“全家桶”，专为动量观测器等高级算法设计
+        返回: 
+            M: 质量矩阵/惯量矩阵 (7x7)
+            C: 科氏力矩阵 (7x7)
+            g: 重力向量 (7,)
+            h: 非线性项向量 (7,), h = C*dq + g
+        """
+        # copy() 是为了防止控制器在外部意外修改了底层的缓存数据
+        M = self.data.M.copy()
+        C = self.data.C.copy()
+        g = self.data.g.copy()
+        h = self.data.nle.copy()
+        
+        return M, C, g, h
+    
     def get_jacobian(self):
         """获取末端雅可比矩阵 (6 x 7)"""
         J = pin.getFrameJacobian(

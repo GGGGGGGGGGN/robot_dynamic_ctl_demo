@@ -143,6 +143,28 @@ class SimInterface:
     def get_state(self):
         return self.data.qpos[self.q_idx].copy(), self.data.qvel[self.v_idx].copy()
 
+    def set_robot_state(self, q, dq=None):
+        """
+        瞬间将机械臂传送/重置到指定的关节状态，并立刻刷新物理引擎
+        """
+        import mujoco
+        
+        # 设置位置
+        self.data.qpos[:7] = q
+        
+        # 设置速度（如果不传，默认设为静止 0）
+        if dq is not None:
+            self.data.qvel[:7] = dq
+        else:
+            self.data.qvel[:7] = np.zeros(7)
+            
+        # 🔥 强制更新一次物理引擎（正向运动学和动力学）
+        # 这一步极其重要，否则你的刚体、坐标系和视觉画面都不会立刻更新过去！
+        mujoco.mj_forward(self.model, self.data)
+        
+        # 如果当前在渲染，顺便把画面也同步过去
+        self.render()
+        
     def set_joint_torque(self, tau):
         self.data.ctrl[self.act_ids] = tau
 
