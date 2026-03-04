@@ -123,3 +123,19 @@ class PinocchioDynamics:
             pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
         )
         return J
+    
+    def compute_orientation_error(self, rot_target, rot_current):
+        """
+        🔥 空间数学接口：计算两个旋转矩阵之间的姿态误差向量
+        将复杂的李代数 (Lie Algebra) 运算封装在底层，向外只暴露纯净的 NumPy 数组。
+        
+        Args:
+            rot_target (np.ndarray): 期望的目标旋转矩阵 (3x3)
+            rot_current (np.ndarray): 当前真实的旋转矩阵 (3x3)
+            
+        Returns:
+            np.ndarray: 等效的三维误差旋转矢量 (3,)
+        """
+        # 计算相对旋转矩阵，并通过 log3 映射为 3D 旋转轴向量
+        return pin.log3(rot_target @ rot_current.T)
+    

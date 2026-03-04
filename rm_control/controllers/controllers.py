@@ -221,65 +221,77 @@ class MomentumObserverCTC:
 # 2. 笛卡尔空间阻抗控制 (Cartesian Impedance Control)
 # =========================================================
 class CartesianImpedanceController:
-    def __init__(self, kp_cart, kd_cart, pin_dyn):
-        """
-        控制末端表现得像一个空间弹簧。
-        Args:
-            kp_cart: 6维刚度 [x, y, z, rx, ry, rz]
-            kd_cart: 6维阻尼 [x, y, z, rx, ry, rz]
-            pin_dyn: PinocchioDynamics 实例
-        """
-        self.name = "Cartesian_Impedance"
-        self.kp = np.diag(kp_cart)  # (6, 6)
-        self.kd = np.diag(kd_cart)  # (6, 6)
+    """
+    终极空间魔法：笛卡尔阻抗控制器 (纯净版)
+    """
+    def __init__(self, pin_dyn, K_x, D_x, null_damp=10.0):
         self.pin_dyn = pin_dyn
+        self.K_x = np.diag(K_x) 
+        self.D_x = np.diag(D_x) 
+        self.null_damp = null_damp 
+        self.tau_limit = np.array([87.0, 87.0, 87.0, 87.0, 12.0, 12.0, 12.0])
 
-    def update(self, q, dq, q_ref, dq_ref, ddq_ref):
-        # 1. 更新模型 (计算真实状态 q, dq)
+    def update(self, q, dq, pos_ref, rot_ref, vel_ref=np.zeros(6)):
+        # 0. 同步底层物理缓存
         self.pin_dyn.update(q, dq)
-        
-        # 获取真实末端位姿 (从主数据 self.data 取)
-        J = self.pin_dyn.get_jacobian()
-        curr_pose = self.pin_dyn.data.oMf[self.pin_dyn.ee_id]
-        p_curr = curr_pose.translation
-        R_curr = curr_pose.rotation
-        
-        # 2. 计算目标末端位姿 (从 q_ref 推算)
-        # 🔥 [关键修改] 使用 compute_forward_kinematics (内部用 temp_data)，
-        # 绝对不污染主数据的真实状态！
-        p_des, R_des = self.pin_dyn.compute_forward_kinematics(q_ref)
-        
-        # 3. 计算笛卡尔误差 (6维: 3位置 + 3方向)
-        # 3.1 位置误差
-        err_pos = p_des - p_curr
-        
-        # 3.2 方向误差 (旋转矩阵差异 -> 转为轴角向量)
-        # R_err = R_des * R_curr^T
-        # 使用 pin.log3 将旋转矩阵差异转换为 3维误差向量
-        R_err = R_des @ R_curr.T
-        err_rot = pin.log3(R_err) 
-        
-        # 合并误差 (6,)
-        error = np.concatenate([err_pos, err_rot])
-        
-        # 4. 计算笛卡尔速度
-        v_curr = J @ dq
-        v_ref = np.zeros(6) # 简化假设目标静止，或者你需要算 J(q_ref)*dq_ref
-        d_error = v_ref - v_curr
-        
-        # 5. 计算虚拟弹簧力 (Task Space Force)
-        # F = Kp * e + Kd * de
-        F_task = self.kp @ error + self.kd @ d_error
-        
-        # 6. 映射回关节力矩
-        # tau = J^T * F + h(重力+科氏力)
-        # 阻抗控制通常只补偿重力，保留惯性特性
-        _, h = self.pin_dyn.get_dynamics()
-        
-        tau = J.T @ F_task + h
-        
-        return tau
 
+        # 1. 空间感知
+        pos, rot = self.pin_dyn.compute_forward_kinematics(q)
+        J = self.pin_dyn.get_jacobian() 
+        v_ee = J @ dq 
+        
+        # 2. 算烂账：计算 6D 空间误差
+        pos_err = pos_ref - pos
+        
+        # ✅ 极其优雅的调用：用底层封装好的业务语义接口，代替天书般的 log3 公式！
+        rot_err = self.pin_dyn.compute_orientation_error(rot_target=rot_ref, rot_current=rot) 
+        
+        e = np.concatenate([pos_err, rot_err])
+        de = vel_ref - v_ee
+
+        # 3. 末端虚拟弹簧力
+        F_task = self.K_x @ e + self.D_x @ de
+
+        # 4. 降维打击：计算任务力矩
+        tau_task = J.T @ F_task
+
+        # 5. 零空间保姆：稳住第 7 个关节
+        # J_T_pinv = np.linalg.pinv(J.T)
+        # N = np.eye(7) - J.T @ J_T_pinv
+        # tau_null = N @ (-self.null_damp * dq)
+
+        # =================================================================
+        # 5. 零空间管家：稳住第 7 个关节，并让它尽量保持优雅姿态！
+        # =================================================================
+        J_T_pinv = np.linalg.pinv(J.T)
+        N = np.eye(7) - J.T @ J_T_pinv
+        
+        # 🔥 新增：设定一个“最舒服”的默认关节姿态 (通常是机械臂半伸展状态)
+        # 这里你可以把它提成类的参数，为了演示我们先写死
+        q_rest = np.array([0.0, -0.5, 0.0, -2.0, 0.0, 1.5, 0.785])
+        
+        # 🔥 新增：在关节空间算一个“拉向 q_rest”的弱弹簧力
+        # k_null 是关节弹簧刚度 (较小)，d_null 是阻尼
+        k_null = 10.0  
+        d_null = 2.0 * np.sqrt(k_null) # 临界阻尼
+        
+        # 这是副任务的期望力矩：努力回到舒服的姿态
+        tau_null_task = k_null * (q_rest - q) - d_null * dq
+        
+        # 💥 极其关键的降维打击：把副任务力矩乘上结界矩阵 N！
+        # 这样 tau_null_task 中任何试图影响末端位置的力都会被 N 矩阵无情剔除，
+        # 只保留那些纯粹改变手肘姿态的力！
+        tau_null = N @ tau_null_task
+        
+        
+        # 6. 动力学兜底与输出
+        M, C, g, h = self.pin_dyn.get_full_dynamics()
+        tau_cmd = tau_task + tau_null + h  # h = C@dq + g，直接用你封装的 h 更简洁！
+        
+        # 终极防爆锁
+        tau_actual = np.clip(tau_cmd, -self.tau_limit, self.tau_limit)
+        
+        return tau_actual
 
 # =========================================================
 # 3. 操作空间控制 (Operational Space Control - OSC)
