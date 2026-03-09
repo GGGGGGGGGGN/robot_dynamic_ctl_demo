@@ -263,8 +263,23 @@ class CartesianImpedanceController:
         # =================================================================
         # 5. 零空间管家：稳住第 7 个关节，并让它尽量保持优雅姿态！
         # =================================================================
-        J_T_pinv = np.linalg.pinv(J.T)
-        N = np.eye(7) - J.T @ J_T_pinv
+        # 为了不破坏末端在各个方向(尤其是低刚度Z方向)的表现，
+        # 我们必须使用【动力学一致性伪逆】(Dynamically Consistent Pseudo-inverse) 
+        # 而不是单纯的运动学伪逆。
+        M, C, g, h = self.pin_dyn.get_full_dynamics()
+        
+        # J_T_pinv = np.linalg.pinv(J.T) # 纯运动学伪逆 (会导致零空间力矩泄漏到任务空间)
+        
+        # 计算 Lambda (操作空间惯量矩阵) = (J * M^-1 * J^T)^-1
+        M_inv = np.linalg.inv(M)
+        Lambda = np.linalg.inv(J @ M_inv @ J.T + 1e-4 * np.eye(6))
+        
+        # 动力学一致性伪逆 J_bar.T = Lambda * J * M^-1 
+        # (对应的 J^T 的伪逆，即 J^T_bar)
+        J_T_bar = Lambda @ J @ M_inv
+        
+        # 结界矩阵 N
+        N = np.eye(7) - J.T @ J_T_bar
         
         # 🔥 新增：设定一个“最舒服”的默认关节姿态 (通常是机械臂半伸展状态)
         # 这里你可以把它提成类的参数，为了演示我们先写死
@@ -279,13 +294,9 @@ class CartesianImpedanceController:
         tau_null_task = k_null * (q_rest - q) - d_null * dq
         
         # 💥 极其关键的降维打击：把副任务力矩乘上结界矩阵 N！
-        # 这样 tau_null_task 中任何试图影响末端位置的力都会被 N 矩阵无情剔除，
-        # 只保留那些纯粹改变手肘姿态的力！
         tau_null = N @ tau_null_task
         
-        
         # 6. 动力学兜底与输出
-        M, C, g, h = self.pin_dyn.get_full_dynamics()
         tau_cmd = tau_task + tau_null + h  # h = C@dq + g，直接用你封装的 h 更简洁！
         
         # 终极防爆锁

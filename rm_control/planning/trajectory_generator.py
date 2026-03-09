@@ -157,10 +157,34 @@ class StepTrajectory(TrajectoryGenerator):
         q_ref = self.q_home.copy()
         if t >= self.t_step:
             q_ref[self.id] = self.end_val
-        else:
-            q_ref[self.id] = self.start_val
-            
         return q_ref, np.zeros(7), np.zeros(7)
+
+
+class CartesianSineTrajectory(TrajectoryGenerator):
+    """
+    笛卡尔空间往复直线轨迹：用于测试笛卡尔阻抗控制器的空间轨迹跟踪能力
+    在基准位置和姿态上，沿指定空间向量方向做正弦往复运动。
+    """
+    def __init__(self, pos_init, rot_init, amplitude, freq=0.5, duration=10.0, dt=0.001):
+        super().__init__(duration, dt)
+        self.pos_init = np.array(pos_init, dtype=float)
+        self.rot_init = np.array(rot_init, dtype=float)
+        self.amplitude = np.array(amplitude, dtype=float) # 决定直线方向和长度的3D向量
+        self.freq = freq
+        self.w = 2 * np.pi * self.freq
+
+    def get_state(self, t):
+        # 使用 (1 - cos) 保证初始速度为0，缓慢启动
+        pos_ref = self.pos_init + self.amplitude * (1 - np.cos(self.w * t))
+        
+        # 组装 6D 前馈速度 (前3维是线速度，后3维角速度为0)
+        vel_ref = np.zeros(6)
+        vel_ref[:3] = self.amplitude * self.w * np.sin(self.w * t)
+        
+        return pos_ref, self.rot_init, vel_ref
+
+    def plot_trajectory(self, filename="cartesian_trajectory_check.png"):
+        print(f"✅ 笛卡尔轨迹暂不生成关节空间绘图，跳过...")
 
 
 # ==============================================================================

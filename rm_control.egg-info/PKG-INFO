@@ -11,6 +11,7 @@ License-File: LICENSE
 Requires-Dist: matplotlib
 Requires-Dist: mujoco>=3.0.0
 Requires-Dist: pyyaml
+Requires-Dist: scipy
 Dynamic: license-file
 
 # robot_dynamic_ctl_demo
